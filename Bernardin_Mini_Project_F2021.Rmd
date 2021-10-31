@@ -205,6 +205,8 @@ st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
 
 ```
 
+
+#decided not to join the watershed data to the state/elev./population data yet
 #this chunk takes a while to run
 ```{r joins2}
 ####
@@ -213,13 +215,13 @@ st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
 #state.df.sf state info (population, elevation, land use, state polygons)
 
 #join sf objects
-watershed.state <- st_join(watersheds, state.df.sf, join=st_is_within_distance, dist=5000)
+#watershed.state <- st_join(watersheds, state.df.sf, join=st_is_within_distance, dist=5000)
 
 #get all the data to the raster crs
-watershed.state <- watershed.state %>% 
-  st_transform(., crs = st_crs(temp.rast))
+#watershed.state <- watershed.state %>% 
+  #st_transform(., crs = st_crs(temp.rast))
 
-st_crs(temp.rast) == st_crs(watershed.state)
+#st_crs(temp.rast) == st_crs(watershed.state)
 ```
 
 ```{r rast}
@@ -251,12 +253,15 @@ precip.extract <- extract(precip.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
 pitcher.sf.t$precip <- precip.extract
 
 #Adding the extracted raster data back to the main dataset
+#state.df.sf (has state polygons, pop, elev., landuse data)
+#watershed (watershed polygons)
+#pitcher.sf.t (pitcher points, temp data, precip data from rasters)
 
-watershed.state.pitchers <- st_join(pitcher.sf.t, watershed.state, join=st_is_within_distance, dist=5000)
+#I had combined these sf objects(watershed and state.df.sf) earlier but I noticed I lost the geom of y when I did this.  Is there a way to combine two sf and keep both geometries so I could plot watershed polygons in a state with the state boundries still there?
 
- summary.watershed.state.pitchers %>%
-  group_by(watershed) %>%
-  mutate(mean_precipitation = mean(precip.extract, na.rm = TRUE))
+ #summary.watershed.state.pitchers <-  watershed.state.pitchers %>% 
+  #group_by(watershed) %>%
+  #mutate(mean_precipitation = mean(precip.extract, na.rm = TRUE))
 
 ```
 
