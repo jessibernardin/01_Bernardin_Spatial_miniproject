@@ -1,0 +1,265 @@
+---
+title: "01_Bernardin_Mini_Project_2021"
+author: "Jessica Bernardin"
+date: "10/20/2021"
+output:
+  pdf_document:
+    toc: yes
+  bookdown::html_document2:
+    toc: yes
+  bookdown::pdf_document2:
+    toc: yes
+  html_document:
+    toc: yes
+    df_print: paged
+urlcolor: blue
+link-citations: yes
+fontsize: 12pt
+bibliography: packages.bib
+csl: "AmJBot.csl"
+---
+
+
+```{r packages, echo=FALSE, warning=FALSE, include=FALSE}
+library(knitr)
+library(rmarkdown)
+library(bookdown)
+library(knitcitations)
+library(formatR)
+library(devtools)
+library(rgbif)
+library(raster)
+library(sf)
+library(ggplot2)
+library(tidyverse)
+library(Rcpp)
+library(terra)
+
+#Generate BibTex citation file for all R packages used to produce report
+knitr::write_bib(.packages(), file = "packages.bib")
+```
+
+
+## Goals for Mini Project 1
+
+1. Articulate an interesting research question based on a dataset you’d like to learn more about.
+
+2. Develop a spatial database that contains potentially relevant explanatory variables that you’d like to explore in the context of that research question.
+
+3. Demonstrate an understanding of the various workflow elements involved in designing and constructing a spatial database for subsequent visualization and analysis.
+
+## Research Question
+
+- Using iNaturalist geotagged observations of *Sarracenia purpurea* plants in North America as a response variable, can predictors like elevation, precipitation, and mean monthly air temperature help inform where plants may be located? 
+
+- Or are geographic features like watershed boundaries and land use more useful predictors for *S. purpurea* populations?
+
+## Data Sets
+
+## Species Occurence -- Response Variable
+
+- GBIF stands for the Global Biodiversity Information facility
+- They provide open access data about all kinds of living creatures!
+- I was able to download a global species occurrence dataset for *Sarracenia purpurea* [dataset citation](GBIF.org (18 October 2021) GBIF Occurrence Download  https://doi.org/10.15468/dl.hqjch2)
+
+- This is the original species page, you are able to sort and filter the type data you are interested in and download a csv file, all of the data is open source.  [Species Page](https://www.gbif.org/species/5421389)
+
+## Elevation Data -- Predictor Variable
+
+- Average elevation by county with codes for county and state [USGS Elevation Data](https://www.usgs.gov/core-science-systems/ngp/board-on-geographic-names/domestic-names)
+- Also contains latitude longitude data for each observation.
+- I found this .txt file of elevation data on the USGS website and I thought it would be an interesting predictor for species occurrence.
+
+## Land Use Data -- Predictor Variable
+
+- I found land use data by state on the USDA website [Land Use Data](https://www.ers.usda.gov/data-products/major-land-uses/)
+- This data is divided into different categories of land use in acres for each state in the US.
+- As wetlands are converted to urban landscapes and agricultural land, it will be interesting to see how species occurrence correlates with land use type in each state on the east coast.
+
+## Watershed Data -- Regions
+
+- A shapefile with the watershed data for the United States was downloaded from the USDS website.
+- [Watershed Data](https://www.sciencebase.gov/catalog/item/4fb697b2e4b03ad19d64b47f)
+- This data set  (North American Atlas – Basin Watersheds) has a scale of 1:10,000,000.  Watersheds will be an interesting way to divide up the landscape and might shed light on future questions like nutrient and pesticide runoff into wetlands.
+
+## State Boundries -- Regions
+
+- In addition to watersheds, state boundries will be used to help orient the viewer along with helping to summarize the data.  
+- The cartographic boundary files are build from the Census Bureau’s MAF/TIGER geographic database and are available for download as shapefiles [State Boundries](https://www.census.gov/geographies/mapping-files/time-series/geo/carto-boundary-file.html).
+
+## Climate Data -- Predictor Variables
+
+- Lastly, after trying several different ways to get raster data for climate variables I decided to use NCEP North American Regional Reanalysis data.
+- I tried downloading GRID files and also the `rnoaa` package but I couldn't get either to work.
+- Here I used the package `ncdf4` to get the mean monthly air temperature and precipitation for January and July, from 2006 to now.  I use the 2006-2007 data for my files.
+- I have not included the raw data because they are very large files that won't fit on github, but I have included the two scripts in Project that show how I got the .tif files.  I used two examples I found on google to help me with the `ncdf4 package`.
+- For this miniproject, I am reading in the two raster files that I created from the scripts called "01_Precip_Raster.R' and "01_Temp_Raster.R".  I have also included their metadata in the project "air.mon.mean_metadata.txt" and "precip.mon.mean_metadata.txt".
+- [Climate Data](https://psl.noaa.gov/data/gridded/data.narr.monolevel.html#detail)
+
+- None of the above climate data approaches worked, so I ended up downloading some worldclim data within R.  I can't compare different months but that is ok.
+
+
+```{r data}
+
+#dependent variable, location of iNat purple pitcher plant observations from GBIF
+pitcher <- read.csv("gbif_sarracenia.csv", sep = "\t")
+
+#predictor variable, elevation data for the US
+
+
+elevation <- read.table("Elevation.US.txt", header = TRUE,
+                 sep = "|",
+                 na.strings = "",
+                 comment.char = "",
+                 quote = "\"",
+                 fill = FALSE)
+
+#predictor variable, land use data for the US
+landuse <- read.csv("MajorLandUse.csv", header = TRUE)
+
+#using worldclim data instead
+r <- getData("worldclim",var="bio",res=10)
+temp.rast <- r[[1]]
+names(temp.rast) <- "Temp"
+
+precip.rast <- r[[12]]
+names(precip.rast) <- "Prec"
+
+plot(temp.rast)
+plot(precip.rast)
+
+#watersheds
+#Projected CRS: Sphere_ARC_INFO_Lambert_Azimuthal_Equal_Area
+watersheds <- st_read("NA_Watersheds_Shapefile/watershed_p_v2.shp")
+
+
+#state boundaries
+#NAD83
+state <- st_read("us_state_20m/cb_2018_us_state_20m.shp")
+
+#census data
+#https://data.ers.usda.gov/reports.aspx?ID=17827
+
+population <- read.csv("state_population.csv")
+
+```
+
+## Making the Database
+
+```{r joins}
+
+#summarize county elevation to state ave elevation
+state.elevation <- elevation %>%
+  group_by(STATE_ALPHA) %>%
+  summarise(mean_elevation = mean(ELEV_IN_M, na.rm = TRUE))
+
+state.elevation <- state.elevation %>%
+  rename(Code = STATE_ALPHA)
+
+st.elev.pop <- left_join(population, state.elevation, by = "Code")
+
+#filter the land use data to only year 2007
+landuse_07 <- filter(landuse, Year == "2007")
+landuse_07 <- landuse_07 %>%
+  rename(state = Region.or.State)
+
+#combine with other state data
+state.df <- left_join(st.elev.pop, landuse_07, by = c("state"))
+
+# check geometries for polygons
+st_is_valid(state) # TRUE
+st_make_valid(watersheds) # TRUE
+
+#plot(st_geometry(state))
+plot(st_geometry(watersheds))
+
+#check crs
+st_crs(state) == st_crs(watersheds) #FALSE
+#reproject
+state <- state %>% 
+  st_transform(., crs = st_crs(watersheds))
+
+#recheck
+st_crs(state) == st_crs(watersheds) #TRUE
+
+#Bind state sf with the state tabular data
+state.df.sf <- left_join(state, state.df, by = c("STUSPS" = "Code"))
+
+#make pitcher data a shape file
+
+pitcher.sf <- st_as_sf(pitcher, coords = c("decimalLongitude", "decimalLatitude"), crs = "EPSG:4326")
+
+plot(st_geometry(pitcher.sf))
+pitcher.sf.t <- st_transform(pitcher.sf, crs = st_crs(r))
+
+plot(temp.rast)
+  plot(st_geometry(pitcher.sf.t),add=T, pch = 20, cex = .2)
+
+#reproject pitcher.sf
+st_crs(state) == st_crs(pitcher.sf)
+
+pitcher.sf <- pitcher.sf %>% 
+  st_transform(., crs = st_crs(watersheds))
+
+st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
+
+```
+
+#this chunk takes a while to run
+```{r joins2}
+####
+#pitcher.sf point geometry
+#watershed sf polygons
+#state.df.sf state info (population, elevation, land use, state polygons)
+
+#join sf objects
+watershed.state <- st_join(watersheds, state.df.sf, join=st_is_within_distance, dist=5000)
+watershed.state.pitchers <- st_join(pitcher.sf, watershed.state, join=st_is_within_distance, dist=5000)
+
+#get all the data to the raster crs
+watershed.state.pitchers <- watershed.state.pitchers %>% 
+  st_transform(., crs = st_crs(temp.rast))
+```
+
+```{r rast}
+
+#raster extract
+#temp and precip
+
+pitcher.buff <- pitcher.sf.t %>% st_buffer(., 25000)
+pitcher.buf.vect <- as(pitcher.buff, "SpatVector")
+head(pitcher.buf.vect)
+
+
+plot(pitcher.buf.vect)
+st_crs(pitcher.buf.vect) == st_crs(temp.rast)
+
+#crop the rasters to just the area where the pitcher plants are
+temp.crop <- crop(temp.rast, extent(pitcher.buf.vect))
+precip.crop <- crop(precip.rast, pitcher.buf.vect)
+
+#extract the pixels where the buffered pitcher plant points are, average the values and report for each plant point
+temp.extract <- terra::extract(temp.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
+precip.extract <- extract(jan_prate, pitcher.buf.vect, fun = mean, na.rm=TRUE)
+
+#Adding the extracted raster data back to the main dataset
+summary.watershed.state.pitchers <- watershed.state.pitchers %>% 
+  left_join(., temp.extract) %>% 
+  left_join(., precip.extract)
+
+
+ summary.watershed.state.pitchers %>%
+  group_by(watershed) %>%
+  mutate(mean_precipitation = mean(precip.extract, na.rm = TRUE)) 
+
+```
+
+## References
+
+<div id="refs"></div>
+
+```{r generateBibliography, results="asis", echo=FALSE, warning = FALSE, message=FALSE}
+library("knitcitations")
+cleanbib()
+options("citation_format" = "pandoc")
+#read.bibtex(file = "Statistical_Methods_Ecology.bib")
