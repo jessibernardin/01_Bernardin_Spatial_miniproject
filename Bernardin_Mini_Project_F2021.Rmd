@@ -226,21 +226,26 @@ watershed.state.pitchers <- watershed.state.pitchers %>%
 #raster extract
 #temp and precip
 
-pitcher.buff <- pitcher.sf.t %>% st_buffer(., 25000)
-pitcher.buf.vect <- as(pitcher.buff, "SpatVector")
-head(pitcher.buf.vect)
-
-
-plot(pitcher.buf.vect)
-st_crs(pitcher.buf.vect) == st_crs(temp.rast)
-
+###DIDNT RUN THIS BECAUSE I COULDN'T GET THE CROP FUNCTION TO FIND THE EXTENT OF Y, EVEN AFTER EXPLICITY MAKING AN EXTENT OBJECT AND FEEDING IT IN.  
+###THE PITCHER DATA ISN'T THAT MUCH OF A SMALLER EXTENT THAN THE RASTER ANYWAY SO MAYBE CROPPING ISN'T NEEDED
+#pitcher.buff <- pitcher.sf.t %>% st_buffer(., 25000)
+#pitcher.buf.vect <- as(pitcher.buff, "SpatVector")
+#head(pitcher.buf.vect)
+#plot(pitcher.buf.vect)
+#st_crs(pitcher.buf.vect) == st_crs(temp.rast)
+#st_crs(pitcher.sf.t) == st_crs(r)
+#a <- vect(pitcher.sf.t)
+#a.extent <- ext(-135.0208, 174.5552, -36.9, 63.434)
+#temp.crop.a <- terra::crop(temp.rast, a.extent)
+#temp.rast
 #crop the rasters to just the area where the pitcher plants are
-temp.crop <- crop(temp.rast, extent(pitcher.buf.vect))
-precip.crop <- crop(precip.rast, pitcher.buf.vect)
+#temp.crop <- crop(temp.rast, extent(pitcher.buf.vect))
+#??`crop,SpatRaster-method`
+#precip.crop <- crop(precip.rast, pitcher.buf.vect)
 
 #extract the pixels where the buffered pitcher plant points are, average the values and report for each plant point
 temp.extract <- terra::extract(temp.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
-precip.extract <- extract(jan_prate, pitcher.buf.vect, fun = mean, na.rm=TRUE)
+precip.extract <- extract(precip.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
 
 #Adding the extracted raster data back to the main dataset
 summary.watershed.state.pitchers <- watershed.state.pitchers %>% 
