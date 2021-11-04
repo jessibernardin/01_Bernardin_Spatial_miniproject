@@ -171,7 +171,7 @@ st_is_valid(state) # TRUE
 st_make_valid(watersheds) # TRUE
 
 #plot(st_geometry(state))
-plot(st_geometry(watersheds))
+#plot(st_geometry(watersheds))
 
 #check crs
 st_crs(state) == st_crs(watersheds) #FALSE
@@ -206,7 +206,7 @@ st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
 ```
 
 
-#decided not to join the watershed data to the state/elev./population data yet
+
 #this chunk takes a while to run
 ```{r joins2}
 ####
@@ -214,21 +214,27 @@ st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
 #watershed sf polygons
 #state.df.sf state info (population, elevation, land use, state polygons)
 
-#join sf objects
-#watershed.state <- st_join(watersheds, state.df.sf, join=st_is_within_distance, dist=5000)
-
 #get all the data to the raster crs
-#watershed.state <- watershed.state %>% 
-  #st_transform(., crs = st_crs(temp.rast))
+state.df.sf <- state.df.sf %>% 
+  st_transform(., crs = st_crs(temp.rast))
 
-#st_crs(temp.rast) == st_crs(watershed.state)
+st_crs(temp.rast) == st_crs(state.df.sf)
+
+
+
+st_crs(temp.rast) == st_crs(watersheds)
+watersheds <- watersheds %>% 
+  st_transform(., crs = st_crs(temp.rast))
+st_crs(temp.rast) == st_crs(watersheds)
+
+
+st_crs(temp.rast) == st_crs(pitcher.sf)
+pitcher.sf <- pitcher.sf %>% 
+  st_transform(., crs = st_crs(temp.rast))
+st_crs(temp.rast) == st_crs(pitcher.sf)
 ```
 
 ```{r rast}
-
-#raster extract
-#temp and precip
-
 ###DIDNT RUN THIS BECAUSE I COULDN'T GET THE CROP FUNCTION TO FIND THE EXTENT OF Y, EVEN AFTER EXPLICITY MAKING AN EXTENT OBJECT AND FEEDING IT IN.  
 ###THE PITCHER DATA ISN'T THAT MUCH OF A SMALLER EXTENT THAN THE RASTER ANYWAY SO MAYBE CROPPING ISN'T NEEDED
 #pitcher.buff <- pitcher.sf.t %>% st_buffer(., 25000)
@@ -245,23 +251,30 @@ st_crs(watersheds) == st_crs(pitcher.sf) #TRUE
 #temp.crop <- crop(temp.rast, extent(pitcher.buf.vect))
 #??`crop,SpatRaster-method`
 #precip.crop <- crop(precip.rast, pitcher.buf.vect)
+```
 
-#extract the pixels where the buffered pitcher plant points are, average the values and report for each plant point
-temp.extract <- terra::extract(temp.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
-pitcher.sf.t$temp <- temp.extract
-precip.extract <- extract(precip.rast, pitcher.sf.t, fun = mean, na.rm=TRUE)
-pitcher.sf.t$precip <- precip.extract
+```{r rast2}
+
+
+#raster extract
+#temp and precip
+
+
+temp.extract <- terra::extract(temp.rast, pitcher.sf, fun = mean, na.rm=TRUE)
+pitcher.sf$temp <- temp.extract
+precip.extract <- extract(precip.rast, pitcher.sf, fun = mean, na.rm=TRUE)
+pitcher.sf$precip <- precip.extract
 
 #Adding the extracted raster data back to the main dataset
 #state.df.sf (has state polygons, pop, elev., landuse data)
 #watershed (watershed polygons)
-#pitcher.sf.t (pitcher points, temp data, precip data from rasters)
+#pitcher.sf (pitcher points, temp data, precip data from rasters)
 
-#I had combined these sf objects(watershed and state.df.sf) earlier but I noticed I lost the geom of y when I did this.  Is there a way to combine two sf and keep both geometries so I could plot watershed polygons in a state with the state boundries still there?
 
- #summary.watershed.state.pitchers <-  watershed.state.pitchers %>% 
-  #group_by(watershed) %>%
-  #mutate(mean_precipitation = mean(precip.extract, na.rm = TRUE))
+
+ summary.pitchers.sf <-  pitcher.sf %>% 
+  mutate(mean_prec = mean(precip.extract, na.rm = TRUE)) %>% 
+  mutate(mean_temp = mean(temp.extract, na.rm = TRUE))
 
 ```
 
