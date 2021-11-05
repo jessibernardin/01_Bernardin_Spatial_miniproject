@@ -265,15 +265,32 @@ pitcher.sf$temp <- temp.extract
 precip.extract <- extract(precip.rast, pitcher.sf, fun = mean, na.rm=TRUE)
 pitcher.sf$precip <- precip.extract
 
+
+temp.wshd <- terra::extract(temp.rast, watersheds, fun = mean, na.rm=TRUE)
+watersheds$temp <- temp.wshd
+precip.wshd <- extract(precip.rast, watersheds, fun = mean, na.rm=TRUE)
+watersheds$precip <- precip.wshd
+
 #Adding the extracted raster data back to the main dataset
 #state.df.sf (has state polygons, pop, elev., landuse data)
 #watershed (watershed polygons)
 #pitcher.sf (pitcher points, temp data, precip data from rasters)
 
 
+watersheds$pt_count <- lengths(st_intersects(watersheds, pitcher.sf))
+watersheds.f <- watersheds %>%
+    filter_at(vars(starts_with("pt_count")), any_vars(. > 0))
+
+plot(st_geometry(watersheds), axes = F, lwd = 2)
+plot(st_geometry(watersheds.f), axes = F, lwd = 2)
+plot(st_geometry(watersheds, reset = FALSE, col = "grey"))
+plot(st_geometry(pitcher.sf), add = TRUE)
+
 
  summary.pitchers.sf <-  pitcher.sf %>% 
-  mutate(mean_prec = mean(precip.extract, na.rm = TRUE)) %>% 
+  mutate(mean_prec = mean(precip.extract, na.rm = TRUE))
+ 
+  summary.pitchers.sf <-  summary.pitchers.sf %>% 
   mutate(mean_temp = mean(temp.extract, na.rm = TRUE))
 
 ```
