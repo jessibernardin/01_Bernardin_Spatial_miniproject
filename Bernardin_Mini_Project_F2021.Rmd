@@ -36,7 +36,7 @@ library(Rcpp)
 library(terra)
 
 #Generate BibTex citation file for all R packages used to produce report
-knitr::write_bib(.packages(), file = "packages.bib")
+knitr::write_bib(.packages(), file = "packages.bib") #I've never seen this! Great move :)
 ```
 
 
@@ -98,6 +98,7 @@ knitr::write_bib(.packages(), file = "packages.bib")
 
 - None of the above climate data approaches worked, so I ended up downloading some worldclim data within R.  I can't compare different months but that is ok.
 
+_If you can tell me more about what 'didn't work', I might be able to help?_
 
 ```{r data}
 
@@ -106,13 +107,14 @@ pitcher <- read.csv("gbif_sarracenia.csv", sep = "\t")
 
 #predictor variable, elevation data for the US
 
-
+#MW: This doesn't work exactly because the elevation file is zipped
+unzip("Elevation.US.txt.zip")
 elevation <- read.table("Elevation.US.txt", header = TRUE,
                  sep = "|",
                  na.strings = "",
                  comment.char = "",
                  quote = "\"",
-                 fill = FALSE)
+                 fill = FALSE) #getData has the `alt` raster too which might make your life easier
 
 #predictor variable, land use data for the US
 landuse <- read.csv("MajorLandUse.csv", header = TRUE)
@@ -140,7 +142,7 @@ state <- st_read("us_state_20m/cb_2018_us_state_20m.shp")
 #census data
 #https://data.ers.usda.gov/reports.aspx?ID=17827
 
-population <- read.csv("state_population.csv")
+population <- read.csv("state_population.csv") #you can also access this via tidycensus
 
 ```
 
@@ -157,18 +159,19 @@ state.elevation <- state.elevation %>%
   rename(Code = STATE_ALPHA)
 
 st.elev.pop <- left_join(population, state.elevation, by = "Code")
-
 #filter the land use data to only year 2007
 landuse_07 <- filter(landuse, Year == "2007")
 landuse_07 <- landuse_07 %>%
   rename(state = Region.or.State)
 
 #combine with other state data
-state.df <- left_join(st.elev.pop, landuse_07, by = c("state"))
+state.df <- left_join(st.elev.pop, landuse_07, by = c("state"))# This doesn't run as written. I think reading in the txt created some strange column heading
+colnames(st.elev.pop)[1] <- "state"
 
+state.df <- left_join(st.elev.pop, landuse_07, by = "state")
 # check geometries for polygons
-st_is_valid(state) # TRUE
-st_make_valid(watersheds) # TRUE
+st_is_valid(state) # TRUE #can use 
+st_make_valid(watersheds) # TRUE MW: Remember that this isn't saving the valid geometries to an object
 
 #plot(st_geometry(state))
 #plot(st_geometry(watersheds))
@@ -233,7 +236,7 @@ pitcher.sf <- pitcher.sf %>%
   st_transform(., crs = st_crs(temp.rast))
 st_crs(temp.rast) == st_crs(pitcher.sf)
 ```
-
+_you are doing a lot of reprojecting here and the object names don't really tell you what is happening. This will get confusing for you at some point and makes it difficult to track what's going on. This might also be why you aren't getting the expected behavior below_
 ```{r rast}
 ###DIDNT RUN THIS BECAUSE I COULDN'T GET THE CROP FUNCTION TO FIND THE EXTENT OF Y, EVEN AFTER EXPLICITY MAKING AN EXTENT OBJECT AND FEEDING IT IN.  
 ###THE PITCHER DATA ISN'T THAT MUCH OF A SMALLER EXTENT THAN THE RASTER ANYWAY SO MAYBE CROPPING ISN'T NEEDED
@@ -252,7 +255,7 @@ st_crs(temp.rast) == st_crs(pitcher.sf)
 #??`crop,SpatRaster-method`
 #precip.crop <- crop(precip.rast, pitcher.buf.vect)
 ```
-
+_MW: you can set `eval=FALSE` in the code chunk options rather than comment all of this out. That would make it easeir for me to troubleshoot (if that's something you want)_
 ```{r rast2}
 
 
@@ -266,9 +269,9 @@ precip.extract <- extract(precip.rast, pitcher.sf, fun = mean, na.rm=TRUE)
 pitcher.sf$precip <- precip.extract
 
 
-temp.wshd <- terra::extract(temp.rast, watersheds, fun = mean, na.rm=TRUE)
+temp.wshd <- terra::extract(temp.rast, watersheds, fun = mean, na.rm=TRUE) # wow is this slow
 watersheds$temp <- temp.wshd
-precip.wshd <- extract(precip.rast, watersheds, fun = mean, na.rm=TRUE)
+precip.wshd <- extract(precip.rast, watersheds, fun = mean, na.rm=TRUE) #why not stack the two and do it all at once? c(temp.wshd, precipwshd)
 watersheds$precip <- precip.wshd
 
 #Adding the extracted raster data back to the main dataset
@@ -292,7 +295,7 @@ plot(st_geometry(pitcher.sf), add = TRUE)
  
   summary.pitchers.sf <-  summary.pitchers.sf %>% 
   mutate(mean_temp = mean(temp.extract, na.rm = TRUE))
-
+# you probably want to save these as intermediate objects so you don't have to wait ofr that extraction every time
 ```
 
 ## References
@@ -300,7 +303,7 @@ plot(st_geometry(pitcher.sf), add = TRUE)
 <div id="refs"></div>
 
 ```{r generateBibliography, results="asis", echo=FALSE, warning = FALSE, message=FALSE}
-library("knitcitations")
+library(knitcitations)
 cleanbib()
 options("citation_format" = "pandoc")
 #read.bibtex(file = "Statistical_Methods_Ecology.bib")
